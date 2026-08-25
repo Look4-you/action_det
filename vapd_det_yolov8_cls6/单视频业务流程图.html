@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VAPD 单视频业务流程图</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'base', themeVariables:{primaryColor:'#e8f0fe',primaryTextColor:'#1a3a5c',primaryBorderColor:'#4a7bae',lineColor:'#5a6c7d',fontSize:'14px'}});</script>
+<style>
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:1500px;margin:0 auto;padding:24px;background:#fafbfc;color:#222}
+  h1{color:#1a3a5c;border-bottom:3px solid #4a7bae;padding-bottom:8px}
+  h2{color:#2c5282;margin-top:28px}
+  .legend{background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px 18px;margin:12px 0;font-size:14px;line-height:1.7}
+  .legend b{color:#1a3a5c}
+  .mermaid{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;text-align:center;overflow-x:auto}
+</style>
+</head>
+<body>
+
+<h1>VAPD 单视频业务流程图（模式1）</h1>
+
+<div class="legend">
+<b>视角</b>：单个视频的完整处理流程（<code>vapd_main.cpp</code> <code>infer_mode=1</code>）<br>
+<b>核心</b>：打开视频 → 1秒6帧抽帧 → 攒10帧buffer → 两级推理(检测+分类) → 保存截图 → 清空继续 → 视频完统计<br>
+<b>说明</b>：纯业务流程，不含接口调用。单视频模式无重读帧、无txt输出（区别于模式3/4）。
+</div>
+
+<div class="mermaid">
+flowchart TD
+    Start([开始处理单视频]) --> V1
+
+    subgraph Open["一、视频打开与参数准备"]
+        V1["打开视频文件 video_path"]
+        V2["获取视频信息<br/>fps / 宽度 / 高度 / 总帧数"]
+        V3{"fps 有效?"}
+        V4["计算抽帧间隔<br/>按1秒6帧抽帧（algoFps=6）"]
+        V1 --> V2 --> V3
+        V3 -->|否| Fail([视频打开失败 退出])
+        V3 -->|是| V4
+    end
+
+    V4 --> ReadLoop
+
+    subgraph Frame["二、逐帧读取与抽帧"]
+        ReadLoop["读取下一帧"]
+        FrameCheck{"当前帧是<br/>抽帧间隔点?"}
+        Upload["当前帧上传GPU<br/>加入buffer"]
+        BufCheck{"buffer 攒满10帧?"}
+        ReadLoop --> FrameCheck
+        FrameCheck -->|否 跳过该帧| NextF["frame_num++"]
+        NextF --> ReadLoop
+        FrameCheck -->|是| Upload --> BufCheck
+        BufCheck -->|否 继续读帧| ReadLoop
+    end
+
+    BufCheck -->|是| Infer
+
+    subgraph Infer["三、核心两级推理（检测 + 分类）"]
+        I1["多帧GPU合并<br/>从10帧取6帧做灰度叠加<br/>（运动累积，凸显运动轨迹）"]
+        I2["YOLOv8 目标检测<br/>在合并图上检测包裹"]
+        I3["后处理<br/>NMS去重 + 过滤边缘框 + 过滤过小框"]
+        I4["遍历每个检测框"]
+        I5{"检测置信度 &gt; 检测阈值?"}
+        I6["ROI缩放<br/>按检测框裁剪10帧对应区域"]
+        I7["ViT 分类模型推理 + softmax<br/>判定动作类别"]
+        I8{"分类置信度 &gt; 分类阈值<br/>且类别 ∈ {0,1}?"}
+        I9["记录事件<br/>检测框 + 类别 + 置信度"]
+        I1 --> I2 --> I3 --> I4 --> I5
+        I5 -->|否 换下个框| I4
+        I5 -->|是| I6 --> I7 --> I8
+        I8 -->|否 换下个框| I4
+        I8 -->|是| I9
+    end
+
+    Infer --> Out
+
+    subgraph Out["四、结果输出"]
+        O1["保存结果截图<br/>文件名含：类别/置信度/bbox"]
+        O2["事件计数<br/>cls1事件数 / cls2事件数"]
+        O1 --> O2
+    end
+
+    Out --> Clr["清空buffer"]
+    Clr -.->|继续读帧攒下10帧| ReadLoop
+
+    ReadLoop -.->|视频读取完毕| Stat
+
+    subgraph Stat["五、视频处理完成统计"]
+        S1["检测事件总数 det_vapd_num"]
+        S2["分类事件总数 cls_vapd_num"]
+        S3["cls1 / cls2 事件计数"]
+        S4["总推理耗时 + 平均单次耗时"]
+    end
+    Stat --> End([单视频处理完成])
+
+    classDef openBox fill:#e8f4fd,stroke:#4a7bae,stroke-width:2px
+    classDef frameBox fill:#fef9e7,stroke:#d4a017,stroke-width:2px
+    classDef inferBox fill:#f0f8f4,stroke:#16a085,stroke-width:2px
+    classDef outBox fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    classDef statBox fill:#f5eef7,stroke:#8e44ad,stroke-width:2px
+    classDef decision fill:#fff3cd,stroke:#856404
+    class V1,V2,V4 openBox
+    class ReadLoop,Upload,NextF frameBox
+    class I1,I2,I3,I4,I6,I7,I9 inferBox
+    class O1,O2 outBox
+    class S1,S2,S3,S4 statBox
+    class FrameCheck,BufCheck,I5,I8,V3 decision
+</div>
+
+<h2>单视频处理关键节点说明</h2>
+<div class="legend">
+<b>① 视频打开</b>：获取 fps/尺寸/总帧数，fps 无效则退出<br><br>
+<b>② 抽帧策略</b>：1秒6帧（algoFps=6），抽帧间隔 = round(fps/6)<br>
+&nbsp;&nbsp;例：fps=30 → 间隔5帧抽1帧 → 每秒抽6帧<br><br>
+<b>③ 10帧buffer</b>：攒满10帧触发一次推理（约1.6秒视频片段）<br>
+&nbsp;&nbsp;单视频模式 buffer 清空后直接继续读帧（无重读帧，区别于模式3/4）<br><br>
+<b>④ 多帧合并</b>：从10帧取6帧灰度叠加做运动累积，凸显抛扔/掉落运动轨迹<br><br>
+<b>⑤ 两级推理</b>：<br>
+&nbsp;&nbsp;检测级（YOLOv8）：在合并图上找包裹位置<br>
+&nbsp;&nbsp;分类级（ViT uniformerv2）：对每个包裹ROI判定动作类别（0/1类为有效事件）<br><br>
+<b>⑥ 事件过滤</b>：检测置信度 &gt; 检测阈值 且 分类置信度 &gt; 分类阈值 且 类别∈{0,1} → 记录为事件<br><br>
+<b>⑦ 输出</b>：保存结果截图（文件名含类别/置信度/bbox），事件计数累加<br><br>
+<b>⑧ 循环</b>：清空buffer → 继续读帧攒下10帧 → 重复推理，直到视频读完<br><br>
+<b>⑨ 统计</b>：视频完输出检测/分类事件总数 + 平均单次推理耗时<br><br>
+<b>⚠️ 注意</b>：单视频模式（模式1）只保存截图，不写txt（写txt是模式3）；第二分类器(cls2)未启用，cls2统计恒0。
+</div>
+
+</body>
+</html>

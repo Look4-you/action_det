@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VAPD 业务流程图 (vapd_main.cpp main)</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'base', themeVariables:{primaryColor:'#e8f0fe',primaryTextColor:'#1a3a5c',primaryBorderColor:'#4a7bae',lineColor:'#5a6c7d',fontSize:'14px'}});</script>
+<style>
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:1600px;margin:0 auto;padding:24px;background:#fafbfc;color:#222}
+  h1{color:#1a3a5c;border-bottom:3px solid #4a7bae;padding-bottom:8px}
+  h2{color:#2c5282;margin-top:28px}
+  .legend{background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px 18px;margin:12px 0;font-size:14px;line-height:1.7}
+  .legend b{color:#1a3a5c}
+  .mermaid{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;text-align:center;overflow-x:auto}
+  code{background:#f0f4f8;padding:1px 5px;border-radius:3px;color:#c0392b;font-size:13px}
+</style>
+</head>
+<body>
+
+<h1>VAPD 业务流程图</h1>
+
+<div class="legend">
+<b>来源</b>：<code>vapd_main.cpp</code> 的 <code>main()</code>（纯业务流程，不含接口调用细节）<br>
+<b>核心</b>：初始化加载4模型 → 按 <code>infer_mode</code> 选5种数据来源模式 → 统一走「两级推理(检测+分类)」→ 输出结果 → 统计<br>
+<b>当前配置</b>：<code>param.h</code> 中 <code>infer_mode=3</code>（视频目录批量），<code>videos_dir=data/denglin</code>
+</div>
+
+<div class="mermaid">
+flowchart TD
+    Start([程序开始 main]) --> Init
+
+    subgraph Init["一、初始化：加载4个模型 + 配置"]
+        I1["加载 YOLOv8 检测模型<br/>wts 权重 → TensorRT 引擎"]
+        I2["加载 ViT 分类模型1<br/>uniformerv2, onnx→TensorRT, fp16"]
+        I3["加载 ViT 分类模型2（备用，当前未启用）"]
+        I4["读取配置：检测/分类阈值、抽帧间隔、buffer大小、ROI缩放比、重读帧数"]
+    end
+
+    Init --> Mode{"二、运行模式 infer_mode"}
+
+    Mode -->|模式0| P0
+    Mode -->|模式1| P1
+    Mode -->|模式2| P2
+    Mode -->|模式3 当前| P3
+    Mode -->|模式4| P4
+
+    %% ===== 模式0：图片目录逐张 =====
+    subgraph P0["模式0：图片目录逐张推理"]
+        P0a["遍历图片目录所有图片"] --> P0b["逐张加载图片 → GPU"]
+        P0b --> P0c["单图 YOLOv8 检测<br/>注：此模式只检测不分类"]
+        P0c --> P0d["记录检测事件"]
+    end
+
+    %% ===== 模式2：图片组 =====
+    subgraph P2["模式2：图片组（每10张一组）"]
+        P2a["遍历图片组目录"] --> P2b["每组加载10张图片 → GPU buffer"]
+        P2b --> Core
+    end
+
+    %% ===== 模式1：单视频 =====
+    subgraph P1["模式1：单视频"]
+        P1a["打开单个视频<br/>获取fps/尺寸"] --> P1b["按1秒6帧抽帧 → GPU"]
+        P1b --> P1c["攒满10帧buffer"] --> Core
+    end
+
+    %% ===== 模式3：视频目录批量（当前） =====
+    subgraph P3["模式3：视频目录批量（当前运行）"]
+        P3a["遍历视频目录所有视频"] --> P3b["打开视频<br/>获取fps/帧数/宽高"]
+        P3b --> P3c{"fps &lt; 5.5?"}
+        P3c -->|是 跳过| P3a
+        P3c -->|否| P3d["按1秒6帧抽帧 → GPU"]
+        P3d --> P3e["重读上一buffer末尾帧<br/>拼接到新buffer开头（保证连续性）"]
+        P3e --> P3f{"攒满10帧buffer?"}
+        P3f -->|否 继续抽帧| P3d
+        P3f -->|是| Core
+    end
+
+    %% ===== 模式4：SFOrder分组 =====
+    subgraph P4["模式4：SFOrder分组视频"]
+        P4a["遍历SFOrder分组目录"] --> P4b["遍历组内视频"]
+        P4b --> P4c["打开视频/获取fps"] --> P4d{"fps &lt; 5.5?"}
+        P4d -->|是 跳过| P4b
+        P4d -->|否| P4e["1秒6帧抽帧"] --> P4f["重读帧拼接"] --> P4g{"攒满10帧?"}
+        P4g -->|否| P4e
+        P4g -->|是| Core
+    end
+
+    %% ===== 核心两级推理（模式1/2/3/4共用） =====
+    subgraph Core["三、核心两级推理（检测 + 分类）"]
+        C1["多帧GPU合并<br/>6帧灰度叠加（运动累积，凸显运动轨迹）"]
+        C2["YOLOv8 目标检测"]
+        C3["后处理：NMS + 过滤边缘框/过小框"]
+        C4["遍历每个检测框"]
+        C5{"检测置信度 &gt; 检测阈值?"}
+        C6["ROI缩放，裁剪各帧对应区域"]
+        C7["ViT 分类模型1 推理 + softmax"]
+        C8{"分类置信度 &gt; 分类阈值<br/>且类别 ∈ {0,1}?"}
+        C9["记录事件<br/>检测框 + 类别 + 置信度"]
+        C1 --> C2 --> C3 --> C4 --> C5
+        C5 -->|否| C4
+        C5 -->|是| C6 --> C7 --> C8
+        C8 -->|否| C4
+        C8 -->|是| C9
+    end
+
+    Core --> Out
+
+    subgraph Out["四、结果输出"]
+        O1["保存结果截图<br/>文件名含：类别/置信度/bbox坐标"]
+        O2["记录结果到txt<br/>视频路径/帧号/类别/bbox"]
+        O1 --> O2
+    end
+
+    Out --> Clr["清空buffer"]
+    Clr -.->|继续攒下10帧| P3d
+    Clr -.->|继续攒下10帧| P4e
+    Clr -.->|视频读完| Nxt{"有下一个视频?"}
+    Nxt -.->|是| P3a
+    Nxt -.->|是| P4b
+    Nxt -.->|否| Stat
+    P2 -.->|组处理完 下一组| P2a
+    P2 -.->|所有组完| Stat
+    P1 -.->|视频完| Stat
+    P0 -.->|所有图片完| Stat
+
+    subgraph Stat["五、统计输出"]
+        S1["检测事件数 det_vapd_num"]
+        S2["分类事件数 cls_vapd_num"]
+        S3["cls1 / cls2 事件计数"]
+        S4["平均推理耗时"]
+    end
+    Stat --> End([程序结束])
+
+    classDef initBox fill:#e8f4fd,stroke:#4a7bae,stroke-width:2px
+    classDef coreBox fill:#f0f8f4,stroke:#16a085,stroke-width:2px
+    classDef outBox fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    classDef statBox fill:#fef9e7,stroke:#d4a017,stroke-width:2px
+    classDef decision fill:#f5eef7,stroke:#8e44ad
+    class I1,I2,I3,I4 initBox
+    class C1,C2,C3,C4,C6,C7,C9 coreBox
+    class O1,O2 outBox
+    class S1,S2,S3,S4 statBox
+    class Mode,P3c,P3f,P4d,P4g,C5,C8,Nxt decision
+</div>
+
+<h2>5种运行模式对比</h2>
+<div class="legend">
+<table style="border-collapse:collapse;width:100%;font-size:13px">
+<tr style="background:#e8f0fe"><th style="border:1px solid #ccc;padding:6px">模式</th><th style="border:1px solid #ccc;padding:6px">数据来源</th><th style="border:1px solid #ccc;padding:6px">攒帧方式</th><th style="border:1px solid #ccc;padding:6px">推理方式</th><th style="border:1px solid #ccc;padding:6px">输出</th></tr>
+<tr><td style="border:1px solid #ccc;padding:6px">0</td><td style="border:1px solid #ccc;padding:6px">图片目录（逐张）</td><td style="border:1px solid #ccc;padding:6px">单图</td><td style="border:1px solid #ccc;padding:6px">仅检测（不分类）</td><td style="border:1px solid #ccc;padding:6px">统计</td></tr>
+<tr><td style="border:1px solid #ccc;padding:6px">1</td><td style="border:1px solid #ccc;padding:6px">单视频</td><td style="border:1px solid #ccc;padding:6px">10帧buffer</td><td style="border:1px solid #ccc;padding:6px">检测+分类</td><td style="border:1px solid #ccc;padding:6px">截图</td></tr>
+<tr><td style="border:1px solid #ccc;padding:6px">2</td><td style="border:1px solid #ccc;padding:6px">图片组（10张/组）</td><td style="border:1px solid #ccc;padding:6px">10张buffer</td><td style="border:1px solid #ccc;padding:6px">检测+分类</td><td style="border:1px solid #ccc;padding:6px">截图</td></tr>
+<tr style="background:#fef9e7"><td style="border:1px solid #ccc;padding:6px"><b>3（当前）</b></td><td style="border:1px solid #ccc;padding:6px">视频目录批量</td><td style="border:1px solid #ccc;padding:6px">10帧buffer+重读帧</td><td style="border:1px solid #ccc;padding:6px">检测+分类</td><td style="border:1px solid #ccc;padding:6px">截图+txt</td></tr>
+<tr><td style="border:1px solid #ccc;padding:6px">4</td><td style="border:1px solid #ccc;padding:6px">SFOrder分组视频</td><td style="border:1px solid #ccc;padding:6px">10帧buffer+重读帧</td><td style="border:1px solid #ccc;padding:6px">检测+分类</td><td style="border:1px solid #ccc;padding:6px">截图(带SFOrder)</td></tr>
+</table>
+</div>
+
+<h2>核心业务逻辑说明</h2>
+<div class="legend">
+<b>两级推理</b>：<br>
+&nbsp;&nbsp;1️⃣ <b>检测级</b>（YOLOv8）：在6帧合并图上检测包裹，输出检测框+置信度<br>
+&nbsp;&nbsp;2️⃣ <b>分类级</b>（ViT uniformerv2）：对每个检测框的ROI（10帧对应区域）做分类，判定动作类别（0/1类为有效事件）<br><br>
+<b>多帧合并的意义</b>：6帧灰度叠加做运动累积，凸显抛扔/掉落等运动轨迹，提升检测率<br><br>
+<b>10帧buffer</b>：1秒6帧抽帧，攒10帧做一次推理（约1.6秒视频片段）<br><br>
+<b>重读帧</b>（模式3/4）：buffer清空时保留上一buffer末尾几帧拼到新buffer开头，保证视频连续性不丢事件<br><br>
+<b>事件过滤</b>：检测置信度 &gt; 检测阈值 且 分类置信度 &gt; 分类阈值 且 类别∈{0,1} 才记录为事件<br><br>
+<b>⚠️ 注意</b>：模式0（单图）只检测不分类（vapd.infer 半成品）；模式1-4用 imgBuffInfer 完整两级推理。<br>
+<b>⚠️ 注意</b>：第二分类器(cls2)未启用，cls2_id 恒为0，cls2事件统计无意义。
+</div>
+
+</body>
+</html>

@@ -1,0 +1,42 @@
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /app/gwc/VAPD/vapd_det_yolov8_cls6/build
+[ 13%] Built target myplugins
+[ 20%] Building CXX object CMakeFiles/vapd_yolov8_det.dir/src/vapdalgo.cpp.o
+[ 26%] Linking CXX executable vapd_yolov8_det
+[100%] Built target vapd_yolov8_det
+[06/23/2026-15:46:21] [06/23/2026-15:46:21] [06/23/2026-15:46:21] [06/23/2026-15:46:21] loading filename from:../weights/production/20250514_best_acc_top1_epoch_55_sim.trt
+deserializing
+-1954091440deserialize done
+loading filename from:../weights/20250516/cls/20250514_hk50cm_2cls_2_epoch_100_sim.trt
+deserializing
+-1954091440deserialize done
+video path is: 1 /app/gwc/VAPD/vapd_det_yolov8_cls6/data/denglin/vpsd_vapd_1080p_270s.mp4
+ total_frames: 1620 video fps: 6 getFrameInter: 1
+frame_num： 1090 x: 540 y: 200 w: 389 h: 281 conf: 0.999998 class_id: 2 det_conf: 0.700895
+frame_num： 1160 x: 478 y: 140 w: 453 h: 513 conf: 0.99939 class_id: 5 det_conf: 0.661048
+frame_num： 1310 x: 753 y: 221 w: 372 h: 450 conf: 0.999998 class_id: 2 det_conf: 0.83868
+frame_num： 1320 x: 876 y: 176 w: 278 h: 508 conf: 0.999996 class_id: 2 det_conf: 0.826151
+frame_num： 1340 x: 922 y: 64 w: 292 h: 323 conf: 0.99993 class_id: 2 det_conf: 0.793106
+frame_num： 1350 x: 706 y: 26 w: 446 h: 677 conf: 0.971002 class_id: 0 det_conf: 0.866585
+frame_num： 1360 x: 729 y: 48 w: 479 h: 683 conf: 0.999996 class_id: 3 det_conf: 0.850469
+frame_num： 1390 x: 839 y: 77 w: 373 h: 554 conf: 0.98346 class_id: 3 det_conf: 0.866585
+frame_num： 1480 x: 854 y: 131 w: 359 h: 419 conf: 0.999424 class_id: 0 det_conf: 0.858719
+frame_num： 1490 x: 829 y: 24 w: 383 h: 515 conf: 0.999993 class_id: 0 det_conf: 0.876211
+frame_num： 1500 x: 907 y: 34 w: 308 h: 560 conf: 0.999722 class_id: 3 det_conf: 0.725649
+frame_num： 1510 x: 788 y: 25 w: 412 h: 542 conf: 0.999992 class_id: 0 det_conf: 0.874507
+frame_num： 1520 x: 901 y: 115 w: 308 h: 459 conf: 0.999926 class_id: 3 det_conf: 0.582254
+frame_num： 1540 x: 1051 y: 20 w: 166 h: 295 conf: 0.99984 class_id: 5 det_conf: 0.740174
+frame_num： 1560 x: 950 y: 59 w: 269 h: 354 conf: 0.999998 class_id: 2 det_conf: 0.818737
+frame_num： 1570 x: 759 y: 290 w: 321 h: 299 conf: 1 class_id: 2 det_conf: 0.501953
+frame_num： 1580 x: 944 y: 17 w: 213 h: 509 conf: 0.999965 class_id: 0 det_conf: 0.717012
+frame_num： 1600 x: 894 y: 143 w: 314 h: 249 conf: 0.998121 class_id: 3 det_conf: 0.694303
+frame_num： 1620 x: 880 y: 432 w: 341 h: 336 conf: 0.998693 class_id: 2 det_conf: 0.806853
+algo inference time: 2956.18ms avg time : 18.248ms
+2,5,2,2,2,0,3,3,0,0,3,0,3,5,2,2,0,3,2,
+dir: /app/gwc/VAPD/vapd_det_yolov8_cls6/data/denglin
+model: ../weights/production/20250514_best_acc_top1_epoch_55_sim.trt
+det algo vapd event number:28
+cls algo vapd event number:19
+cls1 vapd event number:19
+cls2 vapd event number:19

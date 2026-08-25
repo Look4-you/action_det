@@ -1,0 +1,28 @@
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /app/gwc/VAPD/vapd_det_yolov8_cls6/build
+[ 13%] Built target myplugins
+[ 20%] Building CXX object CMakeFiles/vapd_yolov8_det.dir/src/vapdalgo.cpp.o
+[ 26%] Linking CXX executable vapd_yolov8_det
+[100%] Built target vapd_yolov8_det
+[07/01/2026-18:13:08] [07/01/2026-18:13:09] [07/01/2026-18:13:09] [07/01/2026-18:13:09] loading filename from:../weights/production/20250514_best_acc_top1_epoch_55_sim.trt
+deserializing
+772561504deserialize done
+loading filename from:../weights/20250516/cls/20250514_hk50cm_2cls_2_epoch_100_sim.trt
+deserializing
+772561504deserialize done
+video path is: 1 /app/gwc/VAPD/vapd_det_yolov8_cls6/data/denglin/vpsd_vapd_1080p_270s.mp4
+ total_frames: 1620 video fps: 6 getFrameInter: 1
+frame_num： 1350 x: 706 y: 26 w: 446 h: 677 conf: 0.971002 class_id: 0 det_conf: 0.866585
+frame_num： 1480 x: 854 y: 131 w: 359 h: 419 conf: 0.999424 class_id: 0 det_conf: 0.858719
+frame_num： 1490 x: 829 y: 24 w: 383 h: 515 conf: 0.999993 class_id: 0 det_conf: 0.876211
+frame_num： 1510 x: 788 y: 25 w: 412 h: 542 conf: 0.999992 class_id: 0 det_conf: 0.874507
+frame_num： 1580 x: 944 y: 17 w: 213 h: 509 conf: 0.999965 class_id: 0 det_conf: 0.717012
+algo inference time: 2955.84ms avg time : 18.2459ms
+0,0,0,0,0,
+dir: /app/gwc/VAPD/vapd_det_yolov8_cls6/data/denglin
+model: ../weights/production/20250514_best_acc_top1_epoch_55_sim.trt
+det algo vapd event number:27
+cls algo vapd event number:5
+cls1 vapd event number:5
+cls2 vapd event number:5

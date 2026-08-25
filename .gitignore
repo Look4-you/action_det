@@ -1,0 +1,27 @@
+# macOS metadata
+.DS_Store
+
+# Build products
+**/build/
+**/cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+__pycache__/
+*.py[cod]
+
+# Runtime outputs
+**/outputs/
+*.log
+
+# Model weights and inference engines
+**/weights/
+*.onnx
+*.wts
+*.engine
+*.pt
+*.pth
+*.tar
+*.zip
+*.bak
